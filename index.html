@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENG 340 - Homestead & Forest Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #0f172a; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: block; }
+        
+        .screen-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; padding: 20px; z-index: 10; color: white; text-align: center;
+        }
+        
+        #mainMenuScreen { background: rgba(15, 23, 42, 0.95); }
+        #forestRulesScreen { background: rgba(15, 23, 42, 0.96); display: none; }
+        #villageScreen { background: transparent !important; justify-content: flex-start; padding-top: 5vh; display: none; pointer-events: none; }
+        
+        .top-right-bar, .market-popup, .menu-box, .game-btn, .buy-btn, #gameOverPopup { pointer-events: auto !important; }
+        .menu-box { display: flex; gap: 30px; margin-top: 20px; }
+        .menu-card { background: rgba(255,255,255,0.08); border: 2px solid #cbd5e1; border-radius: 20px; padding: 20px; width: 200px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .menu-card:hover { transform: scale(1.05); background: rgba(255,255,255,0.15); border-color: #fbbf24; }
+        .emoji-icon { font-size: 45px; }
+
+        .top-right-bar { position: absolute; top: 20px; right: 20px; display: flex; align-items: center; gap: 15px; }
+        .market-popup { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.98); padding: 25px; border-radius: 20px; border: 2px solid #fbbf24; z-index: 20; width: 460px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .market-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 15px; }
+        .market-item { background: rgba(30, 41, 59, 0.95); border: 2px solid #475569; padding: 12px; border-radius: 15px; text-align: center; }
+        .market-item.unlocked { border-color: #fbbf24; background: rgba(251, 191, 36, 0.15); }
+        .buy-btn { background: #1e293b; color: #fbbf24; border: 1px solid #fbbf24; padding: 6px 14px; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 6px; font-size: 12px; }
+        .buy-btn:disabled { background: #334155; color: #64748b; border-color: #334155; cursor: not-allowed; }
+        .close-market-btn { background: #ef4444; color: white; border: none; padding: 5px 12px; border-radius: 8px; cursor: pointer; float: right; font-weight: bold; }
+
+        #uiScore { position: absolute; top: 20px; left: 20px; color: white; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); background: rgba(16, 185, 129, 0.95); padding: 12px 25px; border-radius: 20px; border: 2px solid #ffffff; z-index: 5; display: none; }
+        #levelNotice { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); color: #fbbf24; font-size: 36px; font-weight: bold; z-index: 15; text-shadow: 0 0 15px rgba(0,0,0,0.8); display: none; background: rgba(0,0,0,0.75); padding: 15px 40px; border-radius: 20px; border: 2px solid #fbbf24; }
+        #gameOverPopup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(30, 41, 59, 0.98); border-radius: 25px; padding: 30px; border: 3px solid #f87171; text-align: center; display: none; z-index: 20; }
+        .game-btn { padding: 12px 40px; font-size: 18px; font-weight: bold; color: white; background: #10b981; border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: 0.2s; margin-top: 15px; }
+        .info-table { margin: 15px 0; background: rgba(255,255,255,0.12); padding: 15px; border-radius: 15px; text-align: left; max-width: 450px; }
+        .info-row { display: flex; align-items: center; margin: 8px 0; font-size: 14px; }
+        .color-box { width: 14px; height: 14px; border-radius: 4px; margin-right: 12px; display: inline-block; border: 1px solid white; }
+    </style>
+</head>
+<body>
+
+    <div id="uiScore">🧺 Toplanan Meyveler: <span id="scoreVal">0</span></div>
+    <div id="levelNotice">SEVIYE ATLADIN! HIZLANIYORUZ! 🏃‍♀️</div>
+
+    <div id="mainMenuScreen" class="screen-overlay">
+        <h1>🍓 Çiftlik & Orman Vadisi Simülasyonu 🧺</h1>
+        <p>Nereye gitmek istersin Şehriban?</p>
+        <div class="menu-box">
+            <div class="menu-card" onclick="enterVillageMode()">
+                <div class="emoji-icon">🏡</div>
+                <h3>Evime/Köyüme Git</h3>
+                <p>Gece-gündüz döngüsü olan yaşayan köyü keşfet.</p>
+            </div>
+            <div class="menu-card" onclick="openForestRules()">
+                <div class="emoji-icon">🌲</div>
+                <h3>Ormana Git</h3>
+                <p>Engellerle dolu yoğun ormanda puanını katla.</p>
+            </div>
+        </div>
+        <p id="mainMenuMeyveCount" style="color: #fbbf24; font-weight: bold; margin-top: 20px;">Toplam Birikmiş Meyve: 0 🧺</p>
+    </div>
+
+    <div id="forestRulesScreen" class="screen-overlay">
+        <h2 style="color: #4ade80; font-size: 28px; margin-bottom: 5px;">🌲 Yoğunlaştırılmış Orman Keşfi 🧺</h2>
+        <div class="info-table">
+            <div class="info-row"><div class="color-box" style="background: #ef4444;"></div> 🔴 Çilek: +5 Puan</div>
+            <div class="info-row"><div class="color-box" style="background: #581c87;"></div> 🟣 Böğürtlen: +10 Puan</div>
+            <div class="info-row"><div class="color-box" style="background: #db2777;"></div> 💗 Ahududu: +15 Puan</div>
+            <div class="info-row" style="color: #f97316; font-weight: bold;">🪵 Kütük: SPACE ile Üstünden ZIPLA!</div>
+            <div class="info-row" style="color: #f87171; font-weight: bold;">🚧 Çalı: Sağa/Sola Kaç!</div>
+        </div>
+        <button class="game-btn" onclick="enterForestMode()" style="background: #10b981;">Yarışa Başla 🚀</button>
+    </div>
+
+    <div id="villageScreen" class="screen-overlay">
+        <h1 style="text-shadow: 2px 2px 4px rgba(0,0,0,0.6); margin: 0;">🏡 Doğal Vadi & Komşu Evleri 🏡</h1>
+        <p id="villageMeyveCount" style="font-size: 18px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 10px; margin: 10px 0;">Meyve Bütçen: 0 🧺</p>
+        <p style="background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 8px; font-size: 13px; margin: 0;">Ekrana <b>TIKLA</b> ve fareyi oynatarak etrafa bak! <b>W,A,S,D</b> ile yürü.</p>
+        
+        <div class="top-right-bar">
+            <button class="game-btn" id="btnDayNight" onclick="toggleDayNight()" style="background: #1e293b; color: #fbbf24; margin:0;">☀️ Gündüz Modu</button>
+            <button class="game-btn" onclick="openMarket()" style="background: #fbbf24; color: #0f172a; font-weight: bold; margin:0;">🛒 Eşya Satın Al</button>
+            <button class="game-btn" onclick="exitToMainMenu()" style="background: #64748b; margin:0;">Ana Menüye Dön ↩️</button>
+        </div>
+
+        <div id="myMarketPopup" class="market-popup">
+            <button class="close-market-btn" onclick="closeMarket()">X</button>
+            <h3 style="color: #fbbf24; margin:0;">🌾 Genişletilmiş Köy Pazarı</h3>
+            <div class="market-grid">
+                <div id="item-dog" class="market-item"><div>🐶</div><h4>Pamuk (Köpek)</h4><span>250 Meyve</span><button id="btn-dog" class="buy-btn" onclick="tradeItem('dog', 250)">Bahçeye Çağır</button></div>
+                <div id="item-doghouse" class="market-item"><div>🏠🐾</div><h4>Pamuk'un Kulübesi</h4><span>350 Meyve</span><button id="btn-doghouse" class="buy-btn" onclick="tradeItem('doghouse', 350)">Kulübeyi Kur</button></div>
+                <div id="item-cat" class="market-item"><div>🐱</div><h4>Duman (Kedi)</h4><span>400 Meyve</span><button id="btn-cat" class="buy-btn" onclick="tradeItem('cat', 400)">Bahçeye Çağır</button></div>
+                <div id="item-catbed" class="market-item"><div>🛏️🐈</div><h4>Duman'ın Yatağı</h4><span>450 Meyve</span><button id="btn-catbed" class="buy-btn" onclick="tradeItem('catbed', 450)">Yatağı Ser</button></div>
+                <div id="item-kamelya" class="market-item"><div>🎪</div><h4>Ahşap Kamelya</h4><span>600 Meyve</span><button id="btn-kamelya" class="buy-btn" onclick="tradeItem('kamelya', 600)">Bahçeye Kur</button></div>
+                <div id="item-swing" class="market-item"><div>🎡</div><h4>Bahçe Salıncağı</h4><span>700 Meyve</span><button id="btn-swing" class="buy-btn" onclick="tradeItem('swing', 700)">Ağaca As</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameOverPopup">
+        <h2 style="color: #f87171; margin:0;">Eyvah, Engele Takıldın! 🪵</h2>
+        <p id="finalScoreMsg"></p>
+        <button class="game-btn" onclick="exitToMainMenu()" style="background: #fbbf24; color:#0f172a; margin-top:10px;">Ana Menüye Dön 🚀</button>
+    </div>
+
+    <script>
+        let scene, camera, renderer, currentMode = "menu"; 
+        let totalMeyveKasa = 0; 
+        
+        const keys = { w: false, s: false, a: false, d: false };
+        let yaw = -Math.PI / 2, pitch = 0;
+        const mouseSensitivity = 0.0025, moveSpeed = 0.12, playerRadius = 0.4;
+        const colliders = [];
+        
+        const ownedItems = { dog: false, doghouse: false, cat: false, catbed: false, kamelya: false, swing: false };
+        let villageGroup, vSlots = {}, birdsPool = [];
+
+        // Dinamik Ağaç Yaprakları Havuzu (Rüzgarda sallamak için)
+        let villageTreesLeaves = [];
+
+        // Nehir ve Gece-Gündüz Parametreleri
+        let riverMaterial, isNight = false;
+        let ambientLight, sunLight;
+        let windowMaterials = []; 
+
+        // Orman Değişkenleri
+        let forestItems = [], environmentTrees = [], forestSpeed = 0.25;
+        let laneFruitCounters = [0, 0, 0];
+
+        let isJumping = false, jumpVelocity = 0, gravity = -0.015, currentLane = 1, runnerPlayer;
+        const lanes = [-2.5, 0, 2.5];
+        let lastSpeedMilestone = 0;
+
+        function initEngine() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a); 
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 10);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            ambientLight = new THREE.AmbientLight(0xffffff, 1.4); scene.add(ambientLight);
+            sunLight = new THREE.DirectionalLight(0xffffff, 0.5); sunLight.position.set(10, 30, 10); scene.add(sunLight);
+
+            window.addEventListener('resize', onWindowResize);
+            setupInputListeners();
+            animate();
+        }
+
+        // --- GECE GÜNDÜZ MOTORU ---
+        function toggleDayNight() {
+            isNight = !isNight;
+            const btn = document.getElementById("btnDayNight");
+
+            if (isNight) {
+                scene.background = new THREE.Color(0x0c0a1f); 
+                if (scene.fog) scene.fog.color = new THREE.Color(0x0c0a1f);
+                ambientLight.intensity = 0.25; 
+                sunLight.intensity = 0.1; 
+                btn.innerText = "🌙 Gece Modu";
+                btn.style.color = "#818cf8";
+
+                windowMaterials.forEach(m => {
+                    m.emissive = new THREE.Color(0xfef08a);
+                    m.emissiveIntensity = 1.2;
+                });
+            } else {
+                scene.background = new THREE.Color(0xa5f3fc); 
+                if (scene.fog) scene.fog.color = new THREE.Color(0xa5f3fc);
+                ambientLight.intensity = 1.4; 
+                sunLight.intensity = 0.5;
+                btn.innerText = "☀️ Gündüz Modu";
+                btn.style.color = "#fbbf24";
+
+                windowMaterials.forEach(m => {
+                    m.emissive = new THREE.Color(0x000000);
+                    m.emissiveIntensity = 0;
+                });
+            }
+        }
+
+        // --- YAŞAYAN DOĞAL KÖY DÜNYASI INŞASI ---
+        function buildVillageWorld() {
+            clearScene();
+            isNight = false;
+            document.getElementById("btnDayNight").innerText = "☀️ Gündüz Modu";
+            document.getElementById("btnDayNight").style.color = "#fbbf24";
+
+            scene.background = new THREE.Color(0xa5f3fc); 
+            scene.fog = new THREE.FogExp2(0xa5f3fc, 0.001); 
+
+            villageGroup = new THREE.Group();
+            windowMaterials = []; 
+            villageTreesLeaves = []; // Yaprak listesini sıfırla
+
+            const grass = new THREE.Mesh(new THREE.PlaneGeometry(150, 300), new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 1.0 })); 
+            grass.rotation.x = -Math.PI / 2; villageGroup.add(grass);
+
+            const riverLeftBeach = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 300), new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 1.0 }));
+            riverLeftBeach.rotation.x = -Math.PI / 2; riverLeftBeach.position.set(9.6, 0.01, 0); villageGroup.add(riverLeftBeach);
+            const riverRightBeach = riverLeftBeach.clone(); riverRightBeach.position.x = 16.4; villageGroup.add(riverRightBeach);
+
+            // Akarsu Dokusu
+            const canvasWater = document.createElement('canvas'); canvasWater.width = 128; canvasWater.height = 128;
+            const ctxWater = canvasWater.getContext('2d');
+            ctxWater.fillStyle = '#0284c7'; ctxWater.fillRect(0, 0, 128, 128);
+            ctxWater.fillStyle = '#38bdf8'; ctxWater.fillRect(10, 20, 40, 6); ctxWater.fillRect(70, 50, 50, 6); ctxWater.fillRect(30, 90, 60, 6);
+            
+            const waterTexture = new THREE.CanvasTexture(canvasWater);
+            waterTexture.wrapS = THREE.RepeatWrapping; waterTexture.wrapT = THREE.RepeatWrapping; waterTexture.repeat.set(1, 15); 
+            riverMaterial = new THREE.MeshStandardMaterial({ map: waterTexture, roughness: 0.1, metalness: 0.3 });
+            const river = new THREE.Mesh(new THREE.PlaneGeometry(6, 300), riverMaterial);
+            river.rotation.x = -Math.PI / 2; river.position.set(13, 0.02, 0); villageGroup.add(river);
+
+            for(let stone=0; stone<20; stone++) {
+                const sGeo = new THREE.SphereGeometry(0.15 + Math.random()*0.2, 8, 8);
+                const sMat = new THREE.MeshStandardMaterial({color: 0x94a3b8, roughness: 0.9});
+                const sMesh = new THREE.Mesh(sGeo, sMat);
+                sMesh.scale.set(1, 0.4, 1.5); sMesh.position.set(9.6 + (Math.random() > 0.5 ? 0 : 6.8), 0.05, -80 + (stone * 8));
+                villageGroup.add(sMesh);
+            }
+
+            const path = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 300), new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 1.0 }));
+            path.rotation.x = -Math.PI / 2; path.position.set(7.5, 0.03, 0); villageGroup.add(path);
+
+            colliders.length = 0;
+            
+            for (let zOffset = -30; zOffset <= 30; zOffset += 30) {
+                const houseContainer = new THREE.Group();
+                houseContainer.position.set(-6, 0, zOffset);
+
+                const winMat = new THREE.MeshStandardMaterial({ color: 0xbae6fd, metalness: 0.5 });
+                windowMaterials.push(winMat);
+
+                if (zOffset === 0) { // BİZİM EV
+                    const base = new THREE.Mesh(new THREE.BoxGeometry(4.8, 3.4, 4.0), new THREE.MeshStandardMaterial({ color: 0xfef08a, roughness: 1.0 }));
+                    base.position.y = 1.7; houseContainer.add(base);
+                    const roof = new THREE.Mesh(new THREE.ConeGeometry(3.6, 2.0, 4), new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 1.0 }));
+                    roof.rotation.y = Math.PI / 4; roof.position.y = 3.9; houseContainer.add(roof);
+                    const windowGeo = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 12), winMat);
+                    windowGeo.rotation.z = Math.PI / 2; windowGeo.position.set(2.41, 1.8, 0); houseContainer.add(windowGeo);
+                    colliders.push({ xMin: -9, xMax: -3, zMin: zOffset - 2.4, zMax: zOffset + 2.4 });
+                } 
+                else if (zOffset === -30) { // 1. KOMŞU
+                    const base = new THREE.Mesh(new THREE.BoxGeometry(3.6, 4.2, 3.8), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 1.0 }));
+                    base.position.y = 2.1; houseContainer.add(base);
+                    const roof = new THREE.Mesh(new THREE.ConeGeometry(3.0, 2.8, 4), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 1.0 }));
+                    roof.rotation.y = Math.PI / 4; roof.position.y = 4.9; houseContainer.add(roof);
+                    const windowGeo = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 12), winMat);
+                    windowGeo.rotation.z = Math.PI / 2; windowGeo.position.set(1.81, 2.5, 0); houseContainer.add(windowGeo);
+                    colliders.push({ xMin: -8.2, xMax: -3.8, zMin: zOffset - 2.2, zMax: zOffset + 2.2 });
+                } 
+                else if (zOffset === 30) { // 2. KOMŞU
+                    const base = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.8, 4.6), new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 1.0 }));
+                    base.position.y = 1.4; houseContainer.add(base);
+                    const roof = new THREE.Mesh(new THREE.ConeGeometry(4.2, 1.6, 4), new THREE.MeshStandardMaterial({ color: 0x9b1c1c, roughness: 1.0 }));
+                    roof.rotation.y = Math.PI / 4; roof.position.y = 3.0; houseContainer.add(roof);
+                    const windowGeo1 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 12), winMat);
+                    windowGeo1.rotation.z = Math.PI / 2; windowGeo1.position.set(2.81, 1.5, -1); houseContainer.add(windowGeo1);
+                    const windowGeo2 = windowGeo1.clone(); windowGeo2.position.z = 1; houseContainer.add(windowGeo2);
+                    colliders.push({ xMin: -9.5, xMax: -2.5, zMin: zOffset - 2.7, zMax: zOffset + 2.7 });
+                }
+
+                villageGroup.add(houseContainer);
+
+                // İpli Çitler
+                const fenceMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 1.0 });
+                const ropeMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 1.0 }); 
+                let previousPostPos = null;
+
+                for(let fX = -12; fX <= 4; fX += 2.0) {
+                    if(fX === 0) { previousPostPos = null; continue; } 
+                    const randomHeight = 0.8 + Math.sin(fX * 5) * 0.1;
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, randomHeight, 6), fenceMat);
+                    post.position.set(fX, randomHeight / 2, zOffset - 7.5); villageGroup.add(post);
+
+                    if(previousPostPos !== null) {
+                        const currentPostPos = new THREE.Vector3(fX, randomHeight - 0.15, zOffset - 7.5);
+                        const distance = previousPostPos.distanceTo(currentPostPos);
+                        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, distance, 6), ropeMat);
+                        rope.position.copy(previousPostPos).add(currentPostPos).multiplyScalar(0.5);
+                        rope.rotation.set(0, 0, Math.PI / 2); villageGroup.add(rope);
+                    }
+                    previousPostPos = new THREE.Vector3(fX, randomHeight - 0.15, zOffset - 7.5);
+                }
+                colliders.push({ xMin: -12.2, xMax: 4.2, zMin: zOffset - 7.65, zMax: zOffset - 7.35 });
+
+                // Meyve Ağaçları (Mühendislik Sallantı Havuzuna Bağlı)
+                for (let t = 0; t < 2; t++) {
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 1.0 })); trunk.position.y = 1.1; tree.add(trunk);
+                    
+                    // Rüzgarda sallanacak olan yaprak grupları
+                    const leavesGroup = new THREE.Group();
+                    leavesGroup.position.y = 2.2;
+                    const leavesBig = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 10), new THREE.MeshStandardMaterial({ color: 0x166534, roughness: 1.0 })); leavesGroup.add(leavesBig);
+                    const leavesSmall = new THREE.Mesh(new THREE.SphereGeometry(0.6, 10, 10), new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 1.0 })); leavesSmall.position.set(0.3, 0.5, 0.2); leavesGroup.add(leavesSmall);
+                    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 8), new THREE.MeshStandardMaterial({ color: 0xdc2626 })); apple.position.set(0.4, -0.1, 0.5); leavesGroup.add(apple);
+                    
+                    tree.add(leavesGroup);
+                    villageTreesLeaves.push(leavesGroup); // CRITICAL REWRITE: Rüzgar havuzuna eklendi!
+                    
+                    tree.position.set(-1.5 - (t * 3.5), 0, zOffset - 4); villageGroup.add(tree);
+                }
+
+                const flowerColors = [0xef4444, 0xec4899, 0xa855f7, 0xf59e0b];
+                for(let f=0; f<6; f++) {
+                    const fl = new THREE.Group();
+                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.25), new THREE.MeshStandardMaterial({color: 0x22c55e, roughness: 1.0})); stem.position.y = 0.125;
+                    const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), new THREE.MeshStandardMaterial({color: flowerColors[f % flowerColors.length], roughness: 1.0})); head.position.y = 0.25;
+                    fl.add(stem, head); fl.position.set(-1 - (f * 1.1), 0, zOffset - 2 + (f * 0.3));
+                    villageGroup.add(fl);
+                }
+            }
+
+            // Arka Plan Yoğun Doğa Ağaçları da rüzgar döngüsüne girsin
+            for(let bg=0; bg<30; bg++) {
+                const bgTree = new THREE.Group();
+                const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.25, 3), new THREE.MeshStandardMaterial({color: 0x451a03, roughness: 1.0})); tr.position.y = 1.5; bgTree.add(tr);
+                
+                const bgLeaves = new THREE.Mesh(new THREE.ConeGeometry(1.4, 3.2, 8), new THREE.MeshStandardMaterial({color: 0x064e3b, roughness: 1.0})); 
+                bgLeaves.position.y = 4; bgTree.add(bgLeaves);
+                villageTreesLeaves.push(bgLeaves); // Rüzgar havuzuna eklendi!
+
+                bgTree.position.set(-20 - (Math.random()*15), 0, -120 + (bg * 8));
+                villageGroup.add(bgTree);
+            }
+
+            // Kuşlar
+            birdsPool = [];
+            for(let b=0; b<6; b++) {
+                const bird = new THREE.Group();
+                const bBody = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.3), new THREE.MeshStandardMaterial({color: 0xf8fafc, roughness: 1.0}));
+                const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.02, 0.12), new THREE.MeshStandardMaterial({color: 0xf1f5f9, roughness: 1.0})); wingL.position.set(-0.2, 0, 0);
+                const wingR = wingL.clone(); wingR.position.x = 0.2;
+                bird.add(bBody, wingL, wingR);
+                bird.userData = { wingL: wingL, wingR: wingR, speed: 0.05 + Math.random()*0.05, offset: Math.random()*10 };
+                bird.position.set(-10 + Math.random()*20, 6 + Math.random()*4, -40 + (b * 15));
+                villageGroup.add(bird); birdsPool.push(bird);
+            }
+
+            vSlots = { dog: new THREE.Group(), doghouse: new THREE.Group(), cat: new THREE.Group(), catbed: new THREE.Group(), kamelya: new THREE.Group(), swing: new THREE.Group() };
+            vSlots.dog.position.set(1.5, 0, -1); vSlots.doghouse.position.set(-0.5, 0, -2);
+            vSlots.cat.position.set(0.5, 0.1, -4); vSlots.catbed.position.set(-1.5, 0, -4.5);
+            vSlots.kamelya.position.set(2, 0, -5); vSlots.swing.position.set(-2, 0, -6);
+            Object.values(vSlots).forEach(slot => villageGroup.add(slot));
+
+            scene.add(villageGroup);
+            renderOwnedRewards();
+
+            camera.position.set(0, 1.6, 6);
+            yaw = -Math.PI / 2; pitch = 0;
+            updateCameraRotation();
+        }
+
+        // --- ORMAN KEŞİF DÜNYASI (KİLİTLİ VE DOKUNULMAZ) ---
+        function buildForestWorld() {
+            clearScene();
+            scene.background = new THREE.Color(0x047857);
+            scene.fog = new THREE.FogExp2(0x047857, 0.012);
+            laneFruitCounters = [0, 0, 0];
+
+            const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 1000), new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.9 }));
+            road.rotation.x = -Math.PI / 2; road.position.z = -450; scene.add(road);
+
+            runnerPlayer = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 12), new THREE.MeshStandardMaterial({ color: 0x0284c7 })); body.position.y = 0.8;
+            runnerPlayer.add(body); scene.add(runnerPlayer);
+
+            environmentTrees = [];
+            for (let i = 0; i < 30; i++) {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.3, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x451a03 })); trunk.position.y = 1.25; tree.add(trunk);
+                const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x064e3b })); leaves.position.y = 3.2; tree.add(leaves);
+                tree.position.set(i % 2 === 0 ? 6.5 : -6.5, 0, -i * 14);
+                scene.add(tree); environmentTrees.push(tree);
+            }
+
+            forestItems = [];
+            const blueprints = [
+                { name: "cilek", score: 5, color: 0xef4444, size: 0.25, isObstacle: false, shape: "cone" },
+                { name: "bogurtlen", score: 10, color: 0x581c87, size: 0.24, isObstacle: false, shape: "sphere" },
+                { name: "ahududu", score: 15, color: 0xdb2777, size: 0.23, isObstacle: false, shape: "sphere" },
+                { name: "kutuk", score: 0, color: 0x7c2d12, size: 0.5, isObstacle: true, shape: "cylinder" },
+                { name: "cali", score: 0, color: 0x166534, size: 1.1, isObstacle: true, shape: "box" }
+            ];
+
+            window.buildItem = function() {
+                const type = blueprints[Math.floor(Math.random() * blueprints.length)];
+                const group = new THREE.Group();
+                let geo, mat = new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.4 });
+
+                if (type.shape === "cone") {
+                    geo = new THREE.ConeGeometry(type.size, type.size * 1.6, 12);
+                    const m = new THREE.Mesh(geo, mat); m.rotation.x = Math.PI; m.position.y = 0.4; group.add(m);
+                } else if (type.shape === "cylinder") {
+                    geo = new THREE.CylinderGeometry(0.24, 0.24, 1.6, 12);
+                    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: type.color })); m.rotation.z = Math.PI/2; m.position.y = 0.24; group.add(m);
+                } else if (type.shape === "box") {
+                    geo = new THREE.BoxGeometry(1.8, 1.3, 0.4);
+                    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.9 })); m.position.y = 0.65; group.add(m);
+                } else {
+                    geo = new THREE.SphereGeometry(type.size, 12, 12);
+                    const m = new THREE.Mesh(geo, mat); m.position.y = 0.4; group.add(m);
+                }
+                group.userData = type;
+                return group;
+            };
+
+            const poolSize = 8;
+            for (let i = 0; i < poolSize; i++) {
+                const item = window.buildItem();
+                item.position.set(lanes[Math.floor(Math.random()*3)], 0, -55 - (i * 13));
+                scene.add(item); forestItems.push(item);
+            }
+
+            camera.position.set(0, 3.8, 4.5);
+            camera.lookAt(0, 1, -2);
+            currentLane = 1;
+            isJumping = false;
+        }
+
+        // --- ANIMASYON RE-RENDER VE CİLA DÖNGÜSÜ ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (currentMode === "village") {
+                let moveX = 0, moveZ = 0;
+                if (keys.w) { moveX += Math.cos(yaw) * moveSpeed; moveZ += Math.sin(yaw) * moveSpeed; }
+                if (keys.s) { moveX -= Math.cos(yaw) * moveSpeed; moveZ -= Math.sin(yaw) * moveSpeed; }
+                if (keys.a) { moveX += Math.sin(yaw) * moveSpeed; moveZ -= Math.cos(yaw) * moveSpeed; }
+                if (keys.d) { moveX -= Math.sin(yaw) * moveSpeed; moveZ += Math.cos(yaw) * moveSpeed; }
+
+                let nX = camera.position.x + moveX;
+                let nZ = camera.position.z + moveZ;
+
+                if (!checkVillageCollision(nX, camera.position.z)) camera.position.x = nX;
+                if (!checkVillageCollision(camera.position.x, nZ)) camera.position.z = nZ;
+                camera.position.y = 1.6; 
+
+                if (riverMaterial && riverMaterial.map) {
+                    riverMaterial.map.offset.y += 0.006; 
+                }
+
+                const time = Date.now() * 0.005;
+
+                // --- CRITICAL ADDITION: RÜZGARDA SALLANAN ELMA AĞAÇLARI ---
+                villageTreesLeaves.forEach(leaves => {
+                    leaves.rotation.z = Math.sin(time * 0.5) * 0.03; // Harmonik tatlı rüzgar salınımı
+                    leaves.rotation.x = Math.cos(time * 0.3) * 0.01;
+                });
+
+                // --- CRITICAL ADDITION: HAYVANLAR İÇİN PIT PIT HOP ZIPLAMA ANIMASYONU ---
+                // Satın alınmış Pamuk ve Duman boş slotlarda ise onları neşeyle zıplatıyoruz
+                if (vSlots.dog && vSlots.dog.children.length > 0) {
+                    vSlots.dog.children[0].position.y = Math.abs(Math.sin(time * 2)) * 0.15;
+                }
+                if (vSlots.cat && vSlots.cat.children.length > 0) {
+                    vSlots.cat.children[0].position.y = Math.abs(Math.sin(time * 2.3)) * 0.12; // Kedi ve köpek farklı frekansta zıplar
+                }
+
+                // Kuşlar
+                birdsPool.forEach(bird => {
+                    bird.position.z += bird.userData.speed;
+                    bird.position.y += Math.sin(time + bird.userData.offset) * 0.01;
+                    if(bird.position.z > 60) bird.position.z = -100;
+                    bird.children[1].rotation.z = Math.sin(time * 3 + bird.userData.offset) * 0.4;
+                    bird.children[2].rotation.z = -Math.sin(time * 3 + bird.userData.offset) * 0.4;
+                });
+            } 
+            else if (currentMode === "forest" && window.isPlaying && !window.isGameOver) {
+                runnerPlayer.position.x += (lanes[currentLane] - runnerPlayer.position.x) * 0.22;
+
+                if (isJumping) {
+                    runnerPlayer.position.y += jumpVelocity;
+                    jumpVelocity += gravity;
+                    if (runnerPlayer.position.y <= 0) { runnerPlayer.position.y = 0; isJumping = false; }
+                }
+
+                let currentMilestone = Math.floor(totalMeyveKasa / 100);
+                if (currentMilestone > lastSpeedMilestone) {
+                    lastSpeedMilestone = currentMilestone;
+                    forestSpeed += 0.05; 
+                    triggerLevelNotice();
+                }
+
+                environmentTrees.forEach(t => { t.position.z += forestSpeed; if(t.position.z > 10) t.position.z = -240; });
+                
+                forestItems.forEach(item => {
+                    item.position.z += forestSpeed;
+                    if (item.position.z > 5) {
+                        scene.remove(item);
+                        const newItem = window.buildItem();
+                        let furthestZ = -50; forestItems.forEach(i => { if(i.position.z < furthestZ) furthestZ = i.position.z; });
+                        newItem.position.set(lanes[Math.floor(Math.random()*3)], 0, furthestZ - 13);
+                        forestItems[forestItems.indexOf(item)] = newItem; scene.add(newItem);
+                    }
+
+                    if (Math.abs(item.position.x - runnerPlayer.position.x) < 0.9 && Math.abs(item.position.z - runnerPlayer.position.z) < 1.1) {
+                        if (item.userData.isObstacle) {
+                            if (item.userData.name === "kutuk" && runnerPlayer.position.y > 0.65) {
+                                // Havada kütük geçişi başarılı
+                            } else {
+                                triggerForestGameOver();
+                            }
+                        } else {
+                            if (runnerPlayer.position.y < 0.7) {
+                                totalMeyveKasa += item.userData.score; 
+                                document.getElementById('scoreVal').innerText = totalMeyveKasa; 
+                                
+                                scene.remove(item);
+                                const newItem = window.buildItem();
+                                let furthestZ = -50; forestItems.forEach(i => { if(i.position.z < furthestZ) furthestZ = i.position.z; });
+                                newItem.position.set(lanes[Math.floor(Math.random()*3)], 0, furthestZ - 13);
+                                forestItems[forestItems.indexOf(item)] = newItem; scene.add(newItem);
+                            }
+                        }
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function triggerLevelNotice() {
+            const notice = document.getElementById("levelNotice");
+            notice.style.display = "block";
+            setTimeout(() => { notice.style.display = "none"; }, 1800);
+        }
+
+        function enterVillageMode() {
+            currentMode = "village";
+            document.getElementById("mainMenuScreen").style.display = "none";
+            document.getElementById("villageScreen").style.display = "flex";
+            document.getElementById("villageMeyveCount").innerText = "Meyve Bütçen: " + totalMeyveKasa + " 🧺";
+            buildVillageWorld();
+        }
+
+        function openForestRules() {
+            document.getElementById("mainMenuScreen").style.display = "none";
+            document.getElementById("forestRulesScreen").style.display = "flex";
+        }
+
+        function enterForestMode() {
+            currentMode = "forest";
+            window.isPlaying = true; window.isGameOver = false;
+            document.getElementById('scoreVal').innerText = totalMeyveKasa; 
+            document.getElementById("forestRulesScreen").style.display = "none";
+            document.getElementById("uiScore").style.display = "block";
+            buildForestWorld();
+        }
+
+        function triggerForestGameOver() {
+            window.isPlaying = false; window.isGameOver = true;
+            document.getElementById("uiScore").style.display = "none";
+            document.getElementById("finalScoreMsg").innerText = "Takıldın ama meyvelerin güvende! Toplam Kalıcı Meyven: " + totalMeyveKasa;
+            document.getElementById("gameOverPopup").style.display = "block";
+        }
+
+        function exitToMainMenu() {
+            currentMode = "menu";
+            window.isPlaying = false; window.isGameOver = false;
+            document.getElementById("villageScreen").style.display = "none";
+            document.getElementById("gameOverPopup").style.display = "none";
+            document.getElementById("mainMenuScreen").style.display = "flex";
+            document.getElementById("mainMenuMeyveCount").innerText = "Toplam Birikmiş Meyve: " + totalMeyveKasa + " 🧺";
+            clearScene();
+            scene.background = new THREE.Color(0x0f172a);
+            camera.position.set(0, 5, 10); camera.lookAt(0,0,0);
+        }
+
+        function setupInputListeners() {
+            window.onkeydown = function(e) {
+                if (currentMode === "village") {
+                    if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = true;
+                    if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = true;
+                    if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = true;
+                    if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = true;
+                } else if (currentMode === "forest" && window.isPlaying) {
+                    if (e.key === 'ArrowLeft' && currentLane > 0) currentLane--;
+                    if (e.key === 'ArrowRight' && currentLane < 2) currentLane++;
+                    if (e.key === ' ' && !isJumping) { isJumping = true; jumpVelocity = 0.25; }
+                }
+            };
+
+            window.onkeyup = function(e) {
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.w = false;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.s = false;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.a = false;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.d = false;
+            };
+
+            renderer.domElement.onclick = function() {
+                if (currentMode === "village") renderer.domElement.requestPointerLock();
+            };
+
+            document.onmousemove = function(e) {
+                if (currentMode === "village" && document.pointerLockElement === renderer.domElement) {
+                    yaw -= e.movementX * mouseSensitivity;
+                    pitch -= e.movementY * mouseSensitivity;
+                    pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
+                    updateCameraRotation();
+                }
+            };
+        }
+
+        function updateCameraRotation() {
+            const target = new THREE.Vector3();
+            target.x = camera.position.x + Math.cos(pitch) * Math.cos(yaw);
+            target.y = camera.position.y + Math.sin(pitch);
+            target.z = camera.position.z + Math.cos(pitch) * Math.sin(yaw);
+            camera.lookAt(target);
+        }
+
+        function checkVillageCollision(x, z) {
+            if (x < -15 || x > 7.5 || z < -45 || z > 45) return true;
+            for (let i = 0; i < colliders.length; i++) {
+                const b = colliders[i];
+                if (x + playerRadius > b.xMin && x - playerRadius < b.xMax && z + playerRadius > b.zMin && z - playerRadius < b.zMax) return true;
+            }
+            return false;
+        }
+
+        function openMarket() { document.getElementById("myMarketPopup").style.display = "block"; updateTradeButtons(); }
+        function closeMarket() { document.getElementById("myMarketPopup").style.display = "none"; }
+
+        function tradeItem(key, cost) {
+            if (totalMeyveKasa >= cost && !ownedItems[key]) {
+                totalMeyveKasa -= cost; ownedItems[key] = true;
+                document.getElementById('villageMeyveCount').innerText = "Meyve Bütçen: " + totalMeyveKasa + " 🧺";
+                closeMarket();
+                buildVillageWorld(); 
+            }
+        }
+
+        function updateTradeButtons() {
+            const arr = ['dog', 'doghouse', 'cat', 'catbed', 'kamelya', 'swing'], costs = [250, 350, 400, 450, 600, 700];
+            arr.forEach((k, idx) => {
+                const btn = document.getElementById('btn-' + k);
+                if (btn) {
+                    if (ownedItems[k]) { btn.innerText = "Bahçede ✅"; btn.disabled = true; }
+                    else { btn.disabled = (totalMeyveKasa < costs[idx]); }
+                }
+            });
+        }
+
+        function renderOwnedRewards() {
+            Object.keys(ownedItems).forEach(k => {
+                if (ownedItems[k] && vSlots[k]) {
+                    const g = new THREE.Group();
+                    
+                    if (k === 'dog') { 
+                        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 })); body.rotation.x = Math.PI / 2;
+                        const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 })); head.position.set(0.2, 0.18, 0);
+                        const earL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshStandardMaterial({ color: 0xd1d5db, roughness: 1.0 })); earL.position.set(0.2, 0.3, 0.06);
+                        const earR = earL.clone(); earR.position.z = -0.06;
+                        g.add(body, head, earL, earR); g.position.y = 0.18;
+                    } 
+                    else if (k === 'doghouse') { 
+                        const houseBase = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 1.0 })); houseBase.position.y = 0.3;
+                        const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.44, 10, 10, 0, Math.PI*2, 0, Math.PI/2)); roofDome.material = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 1.0 }); roofDome.position.y = 0.6;
+                        g.add(houseBase, roofDome);
+                    }
+                    else if (k === 'cat') { 
+                        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.35, 10), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 1.0 })); body.rotation.x = Math.PI / 2;
+                        const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 1.0 })); head.position.set(0.16, 0.16, 0);
+                        const earL = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 1.0 })); earL.position.set(0.16, 0.28, 0.05);
+                        const earR = earL.clone(); earR.position.z = -0.05;
+                        g.add(body, head, earL, earR); g.position.y = 0.14;
+                    } 
+                    else if (k === 'catbed') { 
+                        const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 0.12, 12), new THREE.MeshStandardMaterial({ color: 0xdb2777, roughness: 1.0 })); 
+                        cushion.position.y = 0.06; g.add(cushion);
+                    }
+                    else if (k === 'kamelya') { 
+                        const floor = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.1, 12), new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 1.0 }));
+                        const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 10, 0, Math.PI*2, 0, Math.PI/2)); roofDome.material = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 1.0 }); roofDome.position.y = 1.2;
+                        for(let i=0; i<4; i++) {
+                            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 }));
+                            const angle = (i * Math.PI) / 2; post.position.set(Math.cos(angle)*0.65, 0.6, Math.sin(angle)*0.65); g.add(post);
+                        }
+                        g.add(floor, roofDome);
+                    } 
+                    else if (k === 'swing') { 
+                        const fL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 })); fL.position.set(-0.6, 0.9, 0);
+                        const fR = fL.clone(); fR.position.x = 0.6;
+                        const topBar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 })); topBar.rotation.z = Math.PI / 2; topBar.position.set(0, 1.8, 0);
+                        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.22), new THREE.MeshStandardMaterial({ color: 0x7c2d12 })); seat.position.set(0, 0.4, 0);
+                        g.add(fL, fR, topBar, seat);
+                    }
+                    
+                    vSlots[k].add(g);
+                }
+            });
+        }
+
+        function clearScene() { 
+            if(scene) {
+                while(scene.children.length > 0){ 
+                    let object = scene.children[0];
+                    scene.remove(object); 
+                }
+            }
+            const a = new THREE.AmbientLight(0xffffff, 1.4); scene.add(a); 
+            const s = new THREE.DirectionalLight(0xffffff, 0.5); s.position.set(10, 30, 10); scene.add(s); 
+            ambientLight = a; sunLight = s; 
+        }
+        
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        initEngine();
+    </script>
+</body>
+</html>
