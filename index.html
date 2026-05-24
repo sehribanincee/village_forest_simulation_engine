@@ -369,52 +369,145 @@
             scene.fog = new THREE.FogExp2(0x047857, 0.012);
             laneFruitCounters = [0, 0, 0];
 
-            const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 1000), new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.9 }));
-            road.rotation.x = -Math.PI / 2; road.position.z = -450; scene.add(road);
+            // YOL VE ÇİMENLİK ZEMİNİ
+            const roadGeo = new THREE.PlaneGeometry(8, 1000);
+            const roadMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x5d4037, // Toprak kahverengisi
+                    roughness: 0.9 
+                });
+                const road = new THREE.Mesh(roadGeo, roadMat);
+                road.rotation.x = -Math.PI / 2; road.position.z = -450; scene.add(road);
+                
+                // Yolun kenarına yeşil çimler ekle
+                const grassGeo = new THREE.PlaneGeometry(100, 1000);
+                const grassMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32 }); // Koyu çim yeşili
+                const grass = new THREE.Mesh(grassGeo, grassMat);
+                grass.rotation.x = -Math.PI / 2; grass.position.z = -450; grass.position.y = -0.05; scene.add(grass);
 
+            // --- MİNECRAFT TARZI BLOK İNSAN MOTORU ---
             runnerPlayer = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 12), new THREE.MeshStandardMaterial({ color: 0x0284c7 })); body.position.y = 0.8;
-            runnerPlayer.add(body); scene.add(runnerPlayer);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0284c7 }); // Mavi gömlek
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac }); // Ten rengi
 
-            environmentTrees = [];
-            for (let i = 0; i < 30; i++) {
-                const tree = new THREE.Group();
-                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.3, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x451a03 })); trunk.position.y = 1.25; tree.add(trunk);
-                const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.2, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x064e3b })); leaves.position.y = 3.2; tree.add(leaves);
-                tree.position.set(i % 2 === 0 ? 6.5 : -6.5, 0, -i * 14);
-                scene.add(tree); environmentTrees.push(tree);
-            }
+            // 1. Gövde
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.3), bodyMat);
+            body.position.y = 0.6;
+            
+            // 2. Kafa
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
+            head.position.y = 1.15;
+            
+            // 3. Kollar
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), bodyMat);
+            armL.position.set(-0.35, 0.6, 0);
+            const armR = armL.clone();
+            armR.position.set(0.35, 0.6, 0);
+
+            // 4. Bacaklar
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), new THREE.MeshStandardMaterial({ color: 0x334155 })); // Pantolon
+            legL.position.set(-0.15, 0.1, 0);
+            const legR = legL.clone();
+            legR.position.set(0.15, 0.1, 0);
+
+            runnerPlayer.add(body, head, armL, armR, legL, legR);
+            scene.add(runnerPlayer);
+
+           // ORMANIN DERİNLİĞİNİ ARTIRAN AĞAÇ MOTORU
+environmentTrees = [];
+for (let i = 0; i < 100; i++) { // 30 ağaçtan 100 ağaca çıktık
+    const tree = new THREE.Group();
+    // Gövde
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 1.5, 8), new THREE.MeshStandardMaterial({ color: 0x3e2723 }));
+    trunk.position.y = 0.75; tree.add(trunk);
+    
+    // Katmanlı ağaç yaprağı
+    const leavesMat = new THREE.MeshStandardMaterial({ color: 0x1b5e20 });
+    const l1 = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.5, 8), leavesMat); l1.position.y = 2; tree.add(l1);
+    const l2 = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.3, 8), leavesMat); l2.position.y = 2.8; tree.add(l2);
+    
+    // Rastgele konumlandırma (yolun 5 ile 20 birim uzağına)
+    const side = Math.random() > 0.5 ? 1 : -1;
+    const xPos = side * (6 + Math.random() * 15); 
+    const zPos = -Math.random() * 1000; // Ormanı 1000 birim derinliğe yaydık
+    
+    tree.position.set(xPos, 0, zPos);
+    tree.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.4);
+    
+    scene.add(tree); 
+    environmentTrees.push(tree);
+}
 
             forestItems = [];
             const blueprints = [
-                { name: "cilek", score: 5, color: 0xef4444, size: 0.25, isObstacle: false, shape: "cone" },
-                { name: "bogurtlen", score: 10, color: 0x581c87, size: 0.24, isObstacle: false, shape: "sphere" },
-                { name: "ahududu", score: 15, color: 0xdb2777, size: 0.23, isObstacle: false, shape: "sphere" },
-                { name: "kutuk", score: 0, color: 0x7c2d12, size: 0.5, isObstacle: true, shape: "cylinder" },
-                { name: "cali", score: 0, color: 0x166534, size: 1.1, isObstacle: true, shape: "box" }
-            ];
+    { name: "cilek", score: 5, color: 0xef4444, size: 0.25, isObstacle: false, shape: "cone" },
+    { name: "bogurtlen", score: 10, color: 0x581c87, size: 0.24, isObstacle: false, shape: "sphere" },
+    { name: "ahududu", score: 15, color: 0xdb2777, size: 0.23, isObstacle: false, shape: "sphere" },
+    { name: "yaban_mersini", score: 20, color: 0x1e40af, size: 0.20, isObstacle: false, shape: "sphere" },
+    { name: "kutuk", score: 0, color: 0x7c2d12, size: 0.5, isObstacle: true, shape: "cylinder" },
+    { name: "cali", score: 0, color: 0x166534, size: 1.1, isObstacle: true, shape: "box" }
+];
 
-            window.buildItem = function() {
-                const type = blueprints[Math.floor(Math.random() * blueprints.length)];
-                const group = new THREE.Group();
-                let geo, mat = new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.4 });
+window.buildItem = function(laneIndex) {
+    let type;
+    // 1. Engel Algoritması (2 meyve sonrası kuralı)
+    if (laneFruitCounters[laneIndex] >= 2) { 
+        const obs = blueprints.filter(b => b.isObstacle); 
+        type = obs[Math.floor(Math.random() * obs.length)]; 
+        laneFruitCounters[laneIndex] = 0; 
+    } else { 
+        type = blueprints[Math.floor(Math.random() * blueprints.length)]; 
+        if (!type.isObstacle) laneFruitCounters[laneIndex]++; else laneFruitCounters[laneIndex] = 0; 
+    }
 
-                if (type.shape === "cone") {
-                    geo = new THREE.ConeGeometry(type.size, type.size * 1.6, 12);
-                    const m = new THREE.Mesh(geo, mat); m.rotation.x = Math.PI; m.position.y = 0.4; group.add(m);
-                } else if (type.shape === "cylinder") {
-                    geo = new THREE.CylinderGeometry(0.24, 0.24, 1.6, 12);
-                    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: type.color })); m.rotation.z = Math.PI/2; m.position.y = 0.24; group.add(m);
-                } else if (type.shape === "box") {
-                    geo = new THREE.BoxGeometry(1.8, 1.3, 0.4);
-                    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.9 })); m.position.y = 0.65; group.add(m);
-                } else {
-                    geo = new THREE.SphereGeometry(type.size, 12, 12);
-                    const m = new THREE.Mesh(geo, mat); m.position.y = 0.4; group.add(m);
-                }
-                group.userData = type;
-                return group;
-            };
+    const g = new THREE.Group();
+    let mat;
+
+    // 2. Renk ve Doku Ayarları
+    if (type.isObstacle) {
+        mat = new THREE.MeshStandardMaterial({ color: type.color, roughness: 0.8 });
+    } else {
+        const colors = { 
+            "cilek": ["#ef4444", "#fca5a5"], 
+            "bogurtlen": ["#581c87", "#c084fc"], 
+            "ahududu": ["#db2777", "#fbcfe8"], 
+            "yaban_mersini": ["#1e40af", "#60a5fa"] 
+        };
+        mat = new THREE.MeshStandardMaterial({ map: createFruitTexture(colors[type.name][0], colors[type.name][1]), roughness: 0.3 });
+    }
+
+    // 3. Geometri ve Organik Deformasyon
+    let mesh;
+    if (!type.isObstacle) {
+        // 1. Meyvenin matematiksel profilini al
+        const profile = getFruitProfile(type.name);
+        // 2. Profilini 360 derece döndürerek 3D meyve oluştur (LatheGeometry)
+        const geo = new THREE.LatheGeometry(profile, 16); 
+        mesh = new THREE.Mesh(geo, mat);
+        
+        // Meyveye göre ölçekleme
+        mesh.scale.set(1.5, 1.5, 1.5);
+        mesh.position.y = 0.4;
+    } else {
+        let geo = type.shape === "cylinder" ? new THREE.CylinderGeometry(0.24, 0.24, 1.6, 12) : new THREE.BoxGeometry(1.8, 1.3, 0.4);
+        
+        // --- DOĞALLIK İÇİN KÖŞE BOZMA (ORGANIC DEFORMATION) ---
+        const pos = geo.attributes.position;
+        for(let i = 0; i < pos.count; i++) {
+            pos.setXYZ(i, 
+                pos.getX(i) + (Math.random() - 0.5) * 0.2, 
+                pos.getY(i) + (Math.random() - 0.5) * 0.2, 
+                pos.getZ(i) + (Math.random() - 0.5) * 0.2
+            );
+        }
+        geo.computeVertexNormals();
+        
+        mesh = new THREE.Mesh(geo, mat);
+        if(type.shape === "cylinder") { mesh.rotation.z = Math.PI/2; mesh.position.y = 0.24; }
+        else { mesh.position.y = 0.65; }
+    }
+    
+    g.add(mesh); g.userData = type; return g;
+};
 
             const poolSize = 8;
             for (let i = 0; i < poolSize; i++) {
@@ -654,54 +747,55 @@
         }
 
         function renderOwnedRewards() {
-            Object.keys(ownedItems).forEach(k => {
-                if (ownedItems[k] && vSlots[k]) {
-                    const g = new THREE.Group();
-                    
-                    if (k === 'dog') { 
-                        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 })); body.rotation.x = Math.PI / 2;
-                        const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 })); head.position.set(0.2, 0.18, 0);
-                        const earL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), new THREE.MeshStandardMaterial({ color: 0xd1d5db, roughness: 1.0 })); earL.position.set(0.2, 0.3, 0.06);
-                        const earR = earL.clone(); earR.position.z = -0.06;
-                        g.add(body, head, earL, earR); g.position.y = 0.18;
-                    } 
-                    else if (k === 'doghouse') { 
-                        const houseBase = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 1.0 })); houseBase.position.y = 0.3;
-                        const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.44, 10, 10, 0, Math.PI*2, 0, Math.PI/2)); roofDome.material = new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 1.0 }); roofDome.position.y = 0.6;
-                        g.add(houseBase, roofDome);
-                    }
-                    else if (k === 'cat') { 
-                        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.35, 10), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 1.0 })); body.rotation.x = Math.PI / 2;
-                        const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 1.0 })); head.position.set(0.16, 0.16, 0);
-                        const earL = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 1.0 })); earL.position.set(0.16, 0.28, 0.05);
-                        const earR = earL.clone(); earR.position.z = -0.05;
-                        g.add(body, head, earL, earR); g.position.y = 0.14;
-                    } 
-                    else if (k === 'catbed') { 
-                        const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.5, 0.12, 12), new THREE.MeshStandardMaterial({ color: 0xdb2777, roughness: 1.0 })); 
-                        cushion.position.y = 0.06; g.add(cushion);
-                    }
-                    else if (k === 'kamelya') { 
-                        const floor = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.1, 12), new THREE.MeshStandardMaterial({ color: 0x7c2d12, roughness: 1.0 }));
-                        const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 10, 0, Math.PI*2, 0, Math.PI/2)); roofDome.material = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 1.0 }); roofDome.position.y = 1.2;
-                        for(let i=0; i<4; i++) {
-                            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 }));
-                            const angle = (i * Math.PI) / 2; post.position.set(Math.cos(angle)*0.65, 0.6, Math.sin(angle)*0.65); g.add(post);
-                        }
-                        g.add(floor, roofDome);
-                    } 
-                    else if (k === 'swing') { 
-                        const fL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 })); fL.position.set(-0.6, 0.9, 0);
-                        const fR = fL.clone(); fR.position.x = 0.6;
-                        const topBar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.4, 6), new THREE.MeshStandardMaterial({ color: 0x451a03 })); topBar.rotation.z = Math.PI / 2; topBar.position.set(0, 1.8, 0);
-                        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.22), new THREE.MeshStandardMaterial({ color: 0x7c2d12 })); seat.position.set(0, 0.4, 0);
-                        g.add(fL, fR, topBar, seat);
-                    }
-                    
-                    vSlots[k].add(g);
-                }
-            });
+                Object.keys(ownedItems).forEach(k => {
+                    if (ownedItems[k] && vSlots[k]) {
+                        const g = new THREE.Group();
+                        if (k === 'dog') { 
+                            // Ana gövdeyi siyah yapıyoruz
+                            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.4, 10), new THREE.MeshStandardMaterial({ color: 0x1f2937 })); // Neredeyse Siyah
+                            body.rotation.x = Math.PI / 2;
+                
+                // Kafayı kahverengi yapıyoruz
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), new THREE.MeshStandardMaterial({ color: 0x92400e })); // Sıcak Kahverengi
+                head.position.set(0.2, 0.18, 0);
+                
+                // Kulakları ve burnu siyah yaparak karakter katıyoruz
+                const earMat = new THREE.MeshStandardMaterial({ color: 0x111827 }); // Tam Siyah
+                const earL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), earMat); 
+                earL.position.set(0.2, 0.3, 0.06);
+                const earR = earL.clone(); earR.position.z = -0.06;
+                
+                // Küçük bir siyah burun ucu
+                const nose = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), earMat);
+                nose.position.set(0.35, 0.16, 0);
+                
+                g.add(body, head, earL, earR, nose); 
+                g.position.y = 0.18;
+            } 
+            // Kedi (Duman) - Gri kalabilir
+            else if (k === 'cat') { 
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.35, 10), new THREE.MeshStandardMaterial({ color: 0x475569 })); 
+                body.rotation.x = Math.PI / 2;
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 10), new THREE.MeshStandardMaterial({ color: 0x475569 })); 
+                head.position.set(0.16, 0.16, 0);
+                const earL = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0x334155 })); 
+                earL.position.set(0.16, 0.28, 0.05);
+                const earR = earL.clone(); earR.position.z = -0.05;
+                g.add(body, head, earL, earR); g.position.y = 0.14;
+            }
+            // Diğer eşyalar aynen kalabilir...
+            else if (k === 'doghouse') { 
+                const houseBase = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.4, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0x78350f })); 
+                houseBase.position.y = 0.3;
+                const roofDome = new THREE.Mesh(new THREE.SphereGeometry(0.44, 10, 10, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0x991b1b })); 
+                roofDome.position.y = 0.6;
+                g.add(houseBase, roofDome);
+            }
+            
+            vSlots[k].add(g);
         }
+    });
+}
 
         function clearScene() { 
             if(scene) {
@@ -716,6 +810,63 @@
         }
         
         function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function createFruitTexture(color, detailColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    
+    // Temel Meyve Rengi
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 64, 64);
+    
+    // Meyve Detayları (Benekler veya dokular)
+    ctx.fillStyle = detailColor;
+    for(let i=0; i<10; i++) {
+        ctx.beginPath();
+        ctx.arc(Math.random()*64, Math.random()*64, 2, 0, Math.PI*2);
+        ctx.fill();
+    }
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+}
+function getFruitProfile(name) {
+    const points = [];
+    if (name === "cilek") {
+        // Çileğin konik ve bombeli profili
+        for (let i = 0; i <= 10; i++) {
+            let v = i / 10;
+            points.push(new THREE.Vector2(v * 0.4 * (1 - v), v)); 
+        }
+    } else if (name === "bogurtlen" || name === "yaban_mersini") {
+        // Böğürtlenin o meşhur pütürlü ve yuvarlak yapısı için profil
+        for (let i = 0; i <= 10; i++) {
+            let angle = (i / 10) * Math.PI;
+            points.push(new THREE.Vector2(Math.sin(angle) * 0.35, Math.cos(angle) * 0.35));
+        }
+    } else if (name === "ahududu") {
+        // Ahududunun iç bükey yapısı
+        for (let i = 0; i <= 10; i++) {
+            let t = i / 10;
+            points.push(new THREE.Vector2(0.25 * Math.sin(t * Math.PI * 2), t * 0.4));
+        }
+    }
+    return points;
+}
+
+function createFruitShape(name) {
+    const shape = new THREE.Shape();
+    if (name === "cilek") {
+        shape.moveTo(0, 0); shape.bezierCurveTo(0.2, 0.5, 0.2, 0.8, 0, 1); shape.bezierCurveTo(-0.2, 0.8, -0.2, 0.5, 0, 0);
+    } else if (name === "bogurtlen") {
+        shape.absarc(0, 0.5, 0.3, 0, Math.PI * 2);
+    } else if (name === "yaban_mersini") {
+        shape.absarc(0, 0.5, 0.25, 0, Math.PI * 2);
+    } else { // Ahududu
+        shape.absarc(0, 0.5, 0.22, 0, Math.PI * 2);
+    }
+    return shape;
+}
         initEngine();
     </script>
 </body>
